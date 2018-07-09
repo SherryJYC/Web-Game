@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Gee Bee Game</title>
+<style>
+* {padding:0;margin:0;}
+canvas {background: #eee; display:block; margin:0 auto;}
+input.stop {
+  position:absolute;
+  padding: 15px 25px;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 10px;
+  box-shadow: 0 9px #999;
+    margin-left:auto;margin-top:400px;
+	width:10%;
+    color: white;
+	background-color:tomato;
+	text-align:center;
+}
+input.start { position:absolute;
+  padding: 15px 25px;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 10px;
+  box-shadow: 0 9px #999;
+    margin-left:auto;margin-top:300px;
+	width:10%;
+    color: white;
+	background-color:#0095DD;
+	text-align:center;
+}
+input.rule { position:absolute;
+  padding: 15px 25px;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 10px;
+  box-shadow: 0 9px #999;
+    margin-left:auto;margin-top:500px;
+	width:10%;
+    color: white;
+	background-color:#ffc266;
+	text-align:center;
+}
+#clock {position:absolute; margin-left:auto;width:20%;margin-top:200px;font-size:50px;color:tomato;}
+#sec {position:absolute; margin-left:auto;width:20%;margin-top:100px;font-size:50px;color:tomato;}
+input.stop:hover {background-color: #0095DD;}
+input.stop:hover {background-color: tomato;}
+
+
+input.ball {position:absolute; padding: 15px 25px;margin-left:auto;margin-top:600px;width:20%;font-size:30px;color:tomato;cursor: pointer;
+  border-radius: 10px;box-shadow: 0 9px #999;background-color:#0095DD;color:white;text-align:center;}
+input.ball:hover { position:absolute;background-color: tomato}
+body {background-color: white}
+a {position:absolute;margin-left:auto;width:25%; margin-top:180px;color:tomato;}
+</style>
+<script>
+function addzero(i) { 	if (i < 10) { i = "0" + i;	} return i; }
+	function runClock() {
+		var today = new Date();
+		var h = today.getHours();
+		var m = today.getMinutes();
+		var s = today.getSeconds();
+		h = addzero(h);  m = addzero(m); s = addzero(s);
+		document.getElementById('clock').innerHTML = h +":"+ m +":"+ s;
+		t = setTimeout('runClock()', 1000);
+		}
+</script>
+</head>
+<body>
+<a href="./Q2_README_Gee_Bee.txt" alt="README_Gee_Bee file" target="_blank">CLICK for README_Gee_Bee</a>
+<div id="clock"></div>
+<div id="sec"></div>
+<input type="button" class="ball" onclick="bigBall()" value="Big Ball"/>
+<input type="button" class="rule" onclick="rule()" value="Rules"/>
+<input type="button" class="start" onclick="startGame()" value="Start"/>
+<input type="button" class="stop" onclick="stopGame()" value="Stop"/>
+<canvas id="myCanvas" width="800" height="800"></canvas>
+
+<script>
+var canvas = document.getElementById("myCanvas");
+var ctx = canvas.getContext("2d");
+var ballRadius = 10;
+var x = canvas.width/2;
+var y = canvas.height-30;
+var dx = 3;
+var dy = -3;
+var speed=10;
+var paddleHeight = 10;
+var paddleWidth = 75;
+var paddleX = (canvas.width-paddleWidth)/2;
+var paddleGap = 530;
+
+var rightPressed = false;
+var leftPressed = false;
+var stopPressed = false;
+
+var brickRowCount = 3;
+var brickColumnCount = 6;
+var brickWidth = 80;
+var brickHeight = 20;
+var brickPadding = 10;
+var brickOffsetTop = 20;
+var brickOffsetLeft = 45;
+
+var bricks0 = [];
+for(c=0; c<brickColumnCount+2; c++) {
+    bricks0[c] = [];
+    for(r=0; r<brickRowCount; r++) {
+        bricks0[c][r] = { x: 0, y: 0 , status:1};
+    }
+}
+var bricks1 = [];
+for(c=0; c<brickColumnCount; c++) {
+    bricks1[c] = [];
+    for(r=0; r<brickRowCount; r++) {
+        bricks1[c][r] = { x: 0, y: 0 , status:1};
+    }
+}
+var bricks2 = [];
+for(c=0; c<brickColumnCount; c++) {
+    bricks2[c] = [];
+    for(r=0; r<brickRowCount; r++) {
+        bricks2[c][r] = { x: 0, y: 0 , status:1};
+    }
+}
+var Bonusbricks0=[];
+for(c=0; c<3; c++) { 
+    Bonusbricks0[c] = { x: 0, y: 0 , status:1};
+    
+}
+var Bonusbricks1 = [];
+for(c=0; c<3; c++) { 
+    Bonusbricks1[c]= { x: 0, y: 0 , status:1};
+    
+}
+
+var wallWidth=15;
+var interWallWidth=150;
+var interWallOffset=700;
+var interWall=[];
+for(c=0; c<4; c++) {
+    interWall[c] = {x:0,y:0};
+}
+
+var heX=240;
+var heY=230;
+var heSize=15;
+
+var flpX=350;
+var flpY=375;
+var flpHeight=10;
+var flpHeight0=10;
+var flpWidth=80;
+var score=0;
+var finalscore=100;
+var lives=3;
+var second=91;
+var flpCnt=1;
+ctx.beginPath();
+ctx.font="50px Arial";
+ctx.fillText("Gee Bee Game",240,400,300);
+ctx.closePath();
+function rule() {
+var readRule=prompt("More information about rules? Enter 1 or 2: 1-Show me the rules; 2-No,thanks.");
+if (readRule==1){
+	alert("Rule:\n1-Use mouse or up/down keys to control 2 paddles.\n2-The ball will rebound when hitting paddle,bricks,hexagons and walls.\n3-Hitting blue brick, you win 1 credit, red brick=2 credit,hexagon=5 credit.\n4-Your speed and direction may change when hitting the middle part of the horizontal flipper.\n5-If you win 100 credits in the limited time, congratulation! \n 5.Of course you can choose not to set up timer and enjoy a relaxing game!")
+}
+else if (readRule==2){
+	alert("Enjoy your game!");
+}
+}
+function startGame() {
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+var speed=10;
+var askSpeed = prompt("Please choose the speed. Enter 1,2 or 3: 1-Slow; 2-Middle; 3-Fast (Default is Middle)");
+if (askSpeed==1){
+   speed=20;
+   second=151;
+}
+else if (askSpeed==2){
+	speed=10;
+	second=121;
+}
+else if (askSpeed==3){
+	speed=5;
+	second=91;
+}
+else {speed=20;}
+
+var setTime=prompt("Do you want to set up the timer (Different speed pattern has different time limit！).Enter 1 or 2: 1-Yes; 2-No");
+if (setTime==1){
+	setInterval(function(){second--;document.getElementById('sec').innerHTML="Timer:"+second;},1000);
+	setInterval(function(){alert("Time's up! Restart?");document.location.reload();},second*1000);
+}
+else {alert("Enjoy your game!");}
+setInterval(draw, speed);
+	runClock();
+	
+document.addEventListener("keydown", keyDownHandler, false);
+document.addEventListener("keyup", keyUpHandler, false);
+document.addEventListener("mousemove", mouseMoveHandler,false);
+}
+function stopGame(e) {	
+	stopPressed=true;
+}
+
+function bigBall() {
+	ballRadius=20;
+	paddleWidth=100;
+}
+function keyDownHandler(e) {
+    if(e.keyCode == 39) {
+        rightPressed = true;
+    }
+    else if(e.keyCode == 37) {
+        leftPressed = true;
+    }
+}
+function keyUpHandler(e) {
+    if(e.keyCode == 39) {
+        rightPressed = false;
+    }
+    else if(e.keyCode == 37) {
+        leftPressed = false;
+    }
+}
+function mouseMoveHandler(e) {
+	var relativeX = e.clientX-canvas.offsetLeft;
+	if (relativeX>0 && relativeX<canvas.width){
+		paddleX=relativeX-paddleWidth/2;
+	}
+}
+
+
+function collisionDetection() {
+	
+	for(c=0; c<4; c++) {
+		var w=interWall[c];
+		if(c==0 || c==1) {
+		   if(x>w.x-ballRadius && x<w.x+ballRadius+interWallWidth && y>w.y-ballRadius && y<w.y+wallWidth+ballRadius) {
+		      dy=-dy;
+		   }
+		}
+		else if(c==2 || c==3 ) {
+		   if(x>w.x-ballRadius && x<w.x+wallWidth+ballRadius && y>w.y-ballRadius && y<w.y+interWallWidth+ballRadius) {
+		      dx=-dx;
+		   }
+		}
+	}
+    for(c=0; c<brickColumnCount+2; c++) {
+        for(r=0; r<brickRowCount; r++) {
+            var b0 = bricks0[c][r];
+            if(b0.status == 1) {
+                if(x > b0.x && x < b0.x+brickWidth && y > b0.y && y < b0.y+brickHeight) {
+                    dy = -dy;
+                    b0.status = 0;
+					score++;
+                }
+            }
+	}
+	}
+	for(c=0; c<brickColumnCount; c++) {
+        for(r=0; r<brickRowCount; r++) {
+			var b1 = bricks1[c][r];
+			if(b1.status == 1) {
+                if(x > b1.x && x < b1.x+brickHeight && y > b1.y && y < b1.y+brickWidth-20) {
+                    dx = -dx;
+                    b1.status = 0;
+					score++;
+                }
+            }
+	}
+	}
+	for(c=0; c<brickColumnCount; c++) {
+        for(r=0; r<brickRowCount; r++) {
+			var b2 = bricks2[c][r];
+			if(b2.status == 1) {
+                if(x > b2.x && x < b2.x+brickHeight && y > b2.y && y < b2.y+brickWidth-20) {
+                    dx = -dx;
+                    b2.status = 0;
+					score++;
+					
+                }
+            }
+        }
+    }
+	for(c=0; c<3; c++) { 
+		var bb0=Bonusbricks0[c];
+		if (bb0.status==1) {
+			if (x>bb0.x && x<bb0.x+brickWidth && y>bb0.y && y<bb0.y+brickHeight){
+				dy=-dy;
+				bb0.status=0;
+				score+=2;
+			}
+		}
+    
+	}
+	for(c=0; c<3; c++) { 
+		var bb1=Bonusbricks1[c];
+		if (bb1.status==1) {
+			if (x>bb1.x && x<bb1.x+brickWidth && y>bb1.y && y<bb1.y+brickHeight){
+				dy=-dy;
+				bb1.status=0;
+				score+=2;
+			}
+		}
+    
+	}
+	if (x>heX-heSize && x<heX+heSize && y>heY-heSize && y<heY+heSize){
+		dx=-dx;
+		dy=-dy;
+		score+=5;
+	}
+	if (x>canvas.width-heX-heSize && x<canvas.width-heX+heSize && y>heY-heSize && y<heY+heSize){
+		dx=-dx;
+		dy=-dy;
+		score+=5;
+	}
+	if (x>flpX && x<flpX+flpHeight+ballRadius && y>flpY-ballRadius && y<flpY+flpHeight+ballRadius){
+		dy=-dy;
+	}
+	if (x>flpX+flpHeight0+flpWidth-ballRadius && x<flpX+flpWidth+flpHeight0*2 && y>flpY-ballRadius && y<flpY+flpHeight0+ballRadius){
+		dy=-dy;
+	}
+	if (x>=flpX+flpHeight-ballRadius && x<=flpX+flpHeight-ballRadius+flpWidth && y>=flpY-ballRadius && y<=flpY+flpHeight+ballRadius){
+		flpChange();
+		if(flpCnt%5==0) {dy=-dy;}
+		flpCnt++;
+		if(speed>5) {speed-=5;}
+		else if(speed>=3){speed-=2;}
+		else if(speed<3) {speed+=4;}
+		
+	}
+	if (x>=400-wallWidth/2-ballRadius && x<=400+wallWidth/2-ballRadius+flpWidth && y>=280-ballRadius && y<=280+interWallWidth/2+ballRadius){
+		flpChangeOrange();
+	}
+	if(score>=finalscore){
+					alert("You'v got many credits! Congratulations!");
+					document.location.reload();
+	}
+}
+
+function drawScore(){
+ctx.font="16px Arial";
+ctx.fillStyle="#ff8c1a";
+ctx.fillText("Score: "+score,50,680);
+}
+
+function drawBall() {
+    ctx.beginPath();
+    ctx.arc(x, y, ballRadius, 0, Math.PI*2);
+    ctx.fillStyle = "#ff6666";
+    ctx.fill();
+    ctx.closePath();
+}
+function drawPaddle() {
+    ctx.beginPath();
+    ctx.rect(paddleX, canvas.height-paddleHeight, paddleWidth, paddleHeight);
+	ctx.rect(paddleX, canvas.height-paddleHeight-paddleGap, paddleWidth, paddleHeight);
+    ctx.fillStyle = "#ffa31a";
+    ctx.fill();
+    ctx.closePath();
+}
+function drawWall() {
+	ctx.beginPath();
+	ctx.rect(0,0,800,wallWidth);
+	ctx.rect(0,wallWidth,wallWidth,800-wallWidth);
+	ctx.rect(800-wallWidth,wallWidth,wallWidth,800-wallWidth);
+	ctx.fillStyle = "#0095DD";
+    ctx.fill();
+    ctx.closePath();
+}
+function drawInterWall() {
+	interWall[0].x=wallWidth;
+	interWall[0].y=interWallOffset;
+	interWall[1].x=800-wallWidth-interWallWidth;
+	interWall[1].y=interWallOffset;
+	
+	interWall[2].x=interWallWidth;
+	interWall[2].y=interWallOffset-interWallWidth;
+	interWall[3].x=800-interWallWidth-wallWidth;
+	interWall[3].y=interWallOffset-interWallWidth;
+	
+	ctx.beginPath();
+	ctx.rect(wallWidth,interWallOffset,interWallWidth,wallWidth);
+	ctx.rect(800-wallWidth-interWallWidth,interWallOffset,interWallWidth,wallWidth);
+	ctx.rect(interWallWidth,interWallOffset-interWallWidth,wallWidth,interWallWidth);
+	ctx.rect(800-interWallWidth-wallWidth,interWallOffset-interWallWidth,wallWidth,interWallWidth);
+	ctx.fillStyle = "#ffc266";
+    ctx.fill();
+    ctx.closePath();
+	ctx.beginPath();
+	ctx.rect(400-wallWidth/2,280,wallWidth,interWallWidth/2);
+	ctx.fillStyle = "#ffc266";
+    ctx.fill();
+    ctx.closePath();
+}
+function flpChangeOrange(){
+	ctx.beginPath();
+	ctx.rect(400-wallWidth,280,wallWidth*2,interWallWidth/2);
+	ctx.fillStyle = "tomato";
+    ctx.fill();
+    ctx.closePath();
+}
+function drawBricks() {
+    for(c=0; c<brickColumnCount+2; c++) {
+        for(r=0; r<brickRowCount; r++) {
+		  if(bricks0[c][r].status==1){
+            var brickX = (c*(brickWidth+brickPadding))+brickOffsetLeft;
+            var brickY = (r*(brickHeight+brickPadding))+brickOffsetTop;
+            bricks0[c][r].x = brickX;
+            bricks0[c][r].y = brickY;
+            ctx.beginPath();
+            ctx.rect(brickX, brickY, brickWidth, brickHeight);
+            if (r==brickRowCount-1){ctx.fillStyle = "#ffc266";}
+			else {ctx.fillStyle = "#0095DD";}
+            ctx.fill();
+            ctx.closePath();
+		  }
+        }
+    }
+	for(c=0; c<brickColumnCount; c++) {
+        for(r=0; r<brickRowCount; r++) {
+		  if(bricks1[c][r].status==1){
+            var brickX = (r*(brickHeight+brickPadding))+brickOffsetLeft;
+            var brickY = (c*(brickWidth-20+brickPadding))+brickOffsetTop*2+80;
+            bricks1[c][r].x = brickX;
+            bricks1[c][r].y = brickY;
+            ctx.beginPath();
+            ctx.rect(brickX, brickY, brickHeight, brickWidth-20);
+            ctx.fillStyle = "#0095DD";
+            ctx.fill();
+            ctx.closePath();
+		  }
+        }
+    }
+	for(c=0; c<brickColumnCount; c++) {
+        for(r=0; r<brickRowCount; r++) {
+		  if(bricks2[c][r].status==1){
+            var brickX = (r*(brickHeight+brickPadding))+canvas.width-brickOffsetLeft-80;
+            var brickY = (c*(brickWidth-20+brickPadding))+brickOffsetTop*2+80;
+            bricks2[c][r].x = brickX;
+            bricks2[c][r].y = brickY;
+            ctx.beginPath();
+            ctx.rect(brickX, brickY, brickHeight, brickWidth-20);
+            ctx.fillStyle = "#0095DD";
+            ctx.fill();
+            ctx.closePath();
+		  }
+        }
+    }
+	for(c=0; c<3; c++) { 
+		if(Bonusbricks0[c].status==1){
+			var bbX= brickOffsetLeft;
+			var bbY= (c*(brickHeight+brickPadding))+interWallOffset-150;
+			Bonusbricks0[c].x=bbX;
+			Bonusbricks0[c].y=bbY;
+			ctx.beginPath();
+			ctx.rect(bbX, bbY, brickWidth, brickHeight);
+			ctx.fillStyle = "#ff8080";
+			ctx.fill();
+			ctx.closePath();
+		
+		}
+	}
+	for(c=0; c<3; c++) { 
+		if(Bonusbricks1[c].status==1){
+			var bbX= canvas.width-brickOffsetLeft-brickWidth;
+			var bbY= (c*(brickHeight+brickPadding))+interWallOffset-150;
+			Bonusbricks1[c].x=bbX;
+			Bonusbricks1[c].y=bbY;
+			ctx.beginPath();
+			ctx.rect(bbX, bbY, brickWidth, brickHeight);			
+			ctx.fillStyle = "#ff8080";
+			ctx.fill();
+			ctx.closePath();
+		
+		}
+	}
+	
+}
+function drawLives() {
+ctx.font="16px Arial";
+ctx.fillStyle="#ff8c1a";
+ctx.fillText("Lives: "+lives,canvas.width-100,680);
+}
+
+function drawHexagon() {
+ctx.beginPath();
+ctx.moveTo (heX +  heSize * Math.cos(0), heY +  heSize *  Math.sin(0));           
+for (var i = 1; i <= 6;i += 1) {
+    ctx.lineTo (heX + heSize * Math.cos(i * 2 * Math.PI / 6), heY + heSize * Math.sin(i * 2 * Math.PI / 6));
+}
+ctx.fillStyle="#ff8080";
+ctx.fill();
+ctx.closePath();
+
+ctx.beginPath();
+ctx.moveTo (canvas.width-heX +  heSize * Math.cos(0), heY +  heSize *  Math.sin(0));           
+for (var i = 1; i <= 6;i += 1) {
+    ctx.lineTo (canvas.width-heX + heSize * Math.cos(i * 2 * Math.PI / 6), heY + heSize * Math.sin(i * 2 * Math.PI / 6));
+}
+ctx.fillStyle="#ff8080";
+ctx.fill();
+ctx.closePath();       
+}
+function drawFside() {
+flpHeight0=10;
+ctx.beginPath();
+ctx.rect(flpX,flpY,flpHeight0,flpHeight0);
+ctx.rect(flpX+flpHeight0+flpWidth,flpY,flpHeight0,flpHeight0);
+ctx.fillStyle="#ffc266";
+ctx.fill();
+ctx.closePath();
+}
+function drawFlp() {
+ctx.beginPath();
+ctx.rect(flpX+flpHeight,flpY,flpWidth,flpHeight);
+ctx.fillStyle="#0095DD";
+ctx.fill();
+ctx.closePath();
+ctx.beginPath();
+ctx.fillStyle="#0095DD";
+ctx.fillText("Change Speed",flpX-5,flpY+25);
+ctx.closePath();
+ctx.beginPath();
+ctx.fillStyle="#0095DD";
+ctx.fillText("Gee Bee Game",350,500);
+ctx.closePath();
+}
+function flpChange() {
+	ctx.beginPath();
+	ctx.rect(flpX+flpHeight,flpY-flpHeight/2,flpWidth,flpHeight*2);
+	ctx.fillStyle="#A4E4EC";
+	ctx.fill();
+    ctx.closePath();
+	ctx.beginPath();
+	ctx.fillStyle="#0095DD";
+	ctx.fillText("Change Speed",flpX-5,flpY+25);
+	ctx.closePath();
+	ctx.beginPath();
+	ctx.fillStyle="#0095DD";
+	ctx.fillText("Gee Bee Game",350,500);
+	ctx.closePath();
+}
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+	drawBricks();
+    drawBall();
+    drawPaddle();
+	drawScore();
+	drawLives();
+	drawWall();
+	drawInterWall();
+	drawHexagon();
+	drawFside();
+	drawFlp();
+
+	collisionDetection();
+    
+    if(x + dx > canvas.width-ballRadius-wallWidth || x + dx < ballRadius+wallWidth) {
+        dx = -dx;
+    }
+    if(y + dy < ballRadius+wallWidth) {
+    dy = -dy;
+	}
+	if(x + dx > paddleX && x + dx <paddleX + paddleWidth && y + dy > canvas.height-paddleHeight*2-paddleGap && y + dy < canvas.height-paddleHeight-paddleGap+ballRadius) {
+	dy = -dy;
+    } else if(y + dy > canvas.height-ballRadius) {
+    if(x > paddleX && x < paddleX + paddleWidth) {
+        dy = -dy;
+    }
+    else {
+        lives--;
+		if(!lives) {
+			alert("GAME OVER");
+			document.location.reload();
+		}
+		else {
+			x = canvas.width/2;
+			y = canvas.height-30;
+			dx = 2;
+			dy = -2;
+			paddleX = (canvas.width-paddleWidth)/2;
+		}
+    }
+	}
+    
+    if(rightPressed && paddleX < canvas.width-paddleWidth) {
+        paddleX += 3;
+    }
+    else if(leftPressed && paddleX > 0) {
+        paddleX -= 3;
+    }
+	if (stopPressed) {
+		document.location.reload();
+	}
+    x += dx;
+    y += dy;
+}
+
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

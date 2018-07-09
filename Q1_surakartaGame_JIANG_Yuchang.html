@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Surakarta Game</title>
+<style>
+input.start {
+  padding: 15px 25px;font-size: 24px;cursor: pointer;border-radius: 10px;box-shadow: 0 9px #999;position: absolute;
+  margin-left: 880px;
+	margin-right: 860px;
+    color: white;
+	background-color:#0095DD;
+	text-align:center;
+}
+input.read {
+  padding: 15px 25px;font-size: 24px;cursor: pointer;border-radius: 10px;box-shadow: 0 9px #999;position: absolute;
+  margin-left: 1120px;
+	margin-right: 600px;
+    color: white;
+	background-color:#ffc266;
+	text-align:center;
+}
+input.stop {
+  padding: 15px 25px;font-size: 24px; cursor: pointer; border-radius: 10px;box-shadow: 0 9px #999;position: absolute;
+    margin-left: 990px;
+	margin-right: 730px;
+    color: white;
+	background-color:tomato;
+	text-align:center;
+}
+p.cellTurn {position:absolute;margin-top:200px;margin-left:900px;font-size:20px;color:tomato;}
+p.cellDrag {position:absolute;margin-top:250px;margin-left:900px;font-size:20px;color:tomato;}
+a {position:absolute;margin-top:150px;margin-left:900px;font-size:20px;color:#0095DD;}
+img {position:absolute;}
+</style>
+</head>
+<body>
+<div style="position:relative;">
+<img id="image" src="./Q1_homeimg.png" width="890px" height="750px" alt="chess board"/>
+<input type="button" class="stop" onclick="stop()" value="Stop"/>
+<input type="button" class="start" onclick="start()" value="Start"/>
+<input type="button" class="read" onclick="read()" value="More Tips"/>
+<p class="cellTurn">Tip.1--You Play Red Cells--You Go First</p>
+<p class="cellDrag">Tip.2--Drag your cell on the eatable cell directly<br/>(your cell will change location immediately)</p>
+<a href="./Q1_README_Surakarta.txt" alt="README file" target="_blank"><b>CLICK README for more infor</b></a>
+<canvas id="myCanvas" style="postition:absolute;margin-left:10px;margin-top:10px;" width="800" height="800"></canvas>
+</div>
+<script type="text/javascript">
+var startX=200;
+var startY=200;
+var radius=30;
+var size=80;
+var offX=0;
+var offY=0;
+var chess;
+
+var blueLoop=[[0,1,0,0,1,0],[1,1,1,1,1,1],[0,1,0,0,1,0],[0,1,0,0,1,0],[1,1,1,1,1,1],[0,1,0,0,1,0]];
+var greenLoop=[[0,0,1,1,0,0],[0,0,1,1,0,0],[1,1,1,1,1,1],[1,1,1,1,1,1],[0,0,1,1,0,0],[0,0,1,1,0,0]];
+var blue;
+blue=[[1,0],[0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[5,4],[3,4],[2,4],[0,4],[1,5],[1,4],[1,3],[1,2]];
+var green;
+green=[[2,0],[0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[3,0],[3,1],[3,2],[3,4],[3,5],[5,3],[4,3],[3,3],[2,3],[1,3],[0,3],[2,5],[2,4],[2,1]];
+var direction;
+direction=[0,0,0,0];
+
+function Cell(x,y,r,fill,group,row,col) {
+	this.r=r || 0;
+	this.fill=fill || 'black';
+	this.group=group || 0;
+	this.row=row || 0;
+	this.col=col || 0;
+	this.x=x || 0;
+	this.y=y || 0;
+}
+Cell.prototype.draw= function(ctx) {
+	ctx.beginPath();
+	ctx.arc(this.x,this.y,this.r,0*Math.PI,2*Math.PI);
+	ctx.fillStyle=this.fill;
+	ctx.fill();
+	ctx.closePath();
+}
+Cell.prototype.contain=function(mouseX,mouseY) {
+	var contains=false;
+	if (this.r!=0 && mouseX>this.x-radius && mouseX<this.x+this.r && mouseY>this.y-radius && mouseY<this.y+this.r) {
+		contains=true;
+	}
+	return contains;
+}
+
+Cell.prototype.selectable=function(ctx) {
+	if (this.group==1) {
+		ctx.beginPath();
+		ctx.arc(this.x,this.y,this.r,0*Math.PI,2*Math.PI);
+		ctx.strokeStyle="yellow";
+		ctx.stroke();
+		ctx.closePath();
+	}	
+}
+
+function canvasState(canvas) {
+	this.canvas=canvas;
+	this.ctx=canvas.getContext("2d");
+	this.width=canvas.width;
+	this.height=canvas.height;
+	this.cells=[];
+	this.draggable=false;
+	this.redraw=true;
+	this.selection=null;
+	this.eatCell=0;
+	this.origR=0;
+	this.origC=0;
+	this.eatR=0;
+	this.eatC=0;
+	this.checkR=0;
+	this.checkC=0;
+	this.dragStartX=0;
+	this.dragStartY=0;
+	this.offX=0;
+	this.offY=0;
+	this.sgroup=0;
+	this.result=false;
+	this.startEat=false;
+	this.chessOp=[[1,1,1,1,1,1],[1,1,1,1,1,1],[0,0,0,0,0,0],[0,0,0,0,0,0],[1,1,1,1,1,1],[1,1,1,1,1,1]];
+	var gameState=this;
+	
+	canvas.addEventListener('selectstart', function(e) { e.preventDefault(); return false; }, false);
+	canvas.addEventListener("mousedown",function (e){
+		var mouse=gameState.mousePosition(e);
+		var mouseX=mouse.x;
+		var mouseY=mouse.y;
+		var cells=gameState.cells;
+		
+		for (var i=0;i<gameState.cells.length;i++) {
+			if (gameState.cells[i].contain(mouseX,mouseY) && gameState.cells[i].group==1) {
+				gameState.draggable=true;
+				gameState.redraw=true;
+				//var selectedCell=gameState.cells[i];
+				gameState.selection=gameState.cells[i];
+				gameState.dragStartX=mouseX-gameState.selection.x;
+				gameState.dragStartY=mouseY-gameState.selection.y;
+				gameState.offX=gameState.selection.x;
+				gameState.offY=gameState.selection.y;
+				gameState.origR=gameState.cells[i].row;
+				gameState.origC=gameState.cells[i].col;
+				gameState.sgroup=gameState.cells[i].group;
+				return;
+			}
+		}
+		if (gameState.selection != null) {
+			gameState.selection=null;
+			gameState.redraw=true;
+		}
+	},true);
+	
+	canvas.addEventListener("mousemove",function (e){
+		var mouse=gameState.mousePosition(e);
+		var mouseX=mouse.x;
+		var mouseY=mouse.y;
+		var distX=mouse.x - gameState.offX;
+		var distY=mouse.y - gameState.offY;
+		var dist= Math.sqrt(distX*distX+distY*distY);
+		var distLimit=size*Math.sqrt(2);
+		var eatGroup=1;
+		out:for (var i=0;i<6;i++) {
+			for (var j=0;j<6;j++) {
+				if (mouseX>=200+j*size-size/2 && mouseX<=200+j*size+size/2 && mouseY>=200+i*size-size/2 && mouseY<=200+i*size+size/2) {
+					gameState.eatR=i;
+					gameState.eatC=j;
+					break out;
+				}
+			}
+		}
+		for (var i=0;i<gameState.cells.length;i++){
+			if(gameState.cells[i].row==gameState.eatR && gameState.cells[i].col==gameState.eatC){
+				eatGroup=gameState.cells[i].group;
+				break;
+			}
+		}
+		var Op=gameState.chessOp[gameState.eatR][gameState.eatC]; 		
+		if (Op==0 && gameState.selection != null && gameState.draggable==true && dist<=distLimit && gameState.selection.group==1) {
+			gameState.selection.x=mouse.x-gameState.dragStartX;
+			gameState.selection.y=mouse.y-gameState.dragStartY;
+			gameState.redraw=true;
+		}
+		else if (Op==1 && gameState.sgroup==1 && eatGroup==0 && gameState.selection != null && gameState.draggable && (greenLoop[gameState.origR][gameState.origC]==greenLoop[gameState.eatR][gameState.eatC] || blueLoop[gameState.origR][gameState.origC]==blueLoop[gameState.eatR][gameState.eatC])  ) {
+			var chessGreenNum=0;
+			for (var i=0; i<green.length;i++) {
+				var opR=green[i][0];
+				var opC=green[i][1];
+				if (gameState.chessOp[opR][opC]==1) {
+					chessGreenNum++;
+				}
+			}
+			var chessBlueNum=0;
+			for (var i=0; i<blue.length;i++) {
+				var opR=blue[i][0];
+				var opC=blue[i][1];
+				if (gameState.chessOp[opR][opC]==1) {
+					chessBlueNum++;
+				}
+			}
+			
+			if (chessGreenNum<2 && chessBlueNum<2) {//only one cell on the loop
+				gameState.selection.x=gameState.offX;
+				gameState.selection.y=gameState.offY;
+				gameState.eatCell=0;
+				gameState.redraw=true;
+			}
+			else if (chessGreenNum>=2 || chessBlueNum>=2){
+				var directionNum=4;
+				directionCheck: for (var i=0;i<directionNum;i++) {
+					gameState.eatCell=0;
+					gameState.result=false;
+					gameState.startEat=false;
+					if(i==0 && gameState.origC!=0 && gameState.origC!=5) {
+						direction[0]=1;
+						gameState.eatCell=0;
+						gameState.checkR=gameState.origR;
+						gameState.checkC=gameState.origC;
+						gameState.result=false;
+						gameState.moveUp();if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+						if (gameState.checkC>2.5) {
+							gameState.moveLeft();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveDown();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveRight();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveUp();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+						}
+						else if (gameState.checkC<2.5) {
+							gameState.moveRight();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveDown();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveLeft();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveUp();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+						}	
+					}
+					else if(i==1 && gameState.origC!=0 && gameState.origC!=5) {
+						direction[1]=1;
+						gameState.eatCell=0;
+						gameState.checkR=gameState.origR;
+						gameState.checkC=gameState.origC;
+						gameState.result=false;
+						gameState.moveDown();if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+						if (gameState.checkC>2.5) {
+							gameState.moveLeft();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveUp();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveRight();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveDown();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+						}
+						else if (gameState.checkC<2.5) {
+							gameState.moveRight();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveUp();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveLeft();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveDown();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+						}	
+					}
+					else if(i==2 && gameState.origR!=0 && gameState.origR!=5) {
+						direction[2]=1;
+						gameState.eatCell=0;
+						gameState.checkR=gameState.origR;
+						gameState.checkC=gameState.origC;
+						gameState.result=false;
+						gameState.moveLeft();if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							if (gameState.checkR>2.5) {
+							gameState.moveUp();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveRight();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveDown();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveLeft();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+						}
+						else if (gameState.checkR<2.5) {
+							gameState.moveDown();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveRight();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveUp();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+							gameState.moveLeft();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+						}	
+					}
+					else if(i==3 && gameState.origR!=0 && gameState.origR!=5 ) {
+						direction[3]=1;
+						gameState.eatCell=0;
+						gameState.checkR=gameState.origR;
+						gameState.checkC=gameState.origC;
+						gameState.result=false;
+						gameState.moveRight();if (gameState.result && gameState.startEat==false) {continue directionCheck;}
+						if (gameState.checkR>2.5) {
+							gameState.moveUp();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {break directionCheck;}
+							gameState.moveLeft();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {break directionCheck;}
+							gameState.moveDown();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {break directionCheck;}
+							gameState.moveRight();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {break directionCheck;}
+						}
+						else if (gameState.checkR<2.5) {
+							gameState.moveDown();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {break directionCheck;}
+							gameState.moveLeft();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {break directionCheck;}
+							gameState.moveUp();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {break directionCheck;}
+							gameState.moveRight();if (gameState.result && gameState.startEat) {break directionCheck;} else if (gameState.result && gameState.startEat==false) {break directionCheck;}
+						}		
+					}
+				}
+				//finished check, start changing location 
+				if (gameState.result && gameState.startEat==true) {
+						gameState.selection.x=mouse.x-gameState.dragStartX;
+						gameState.selection.y=mouse.y-gameState.dragStartY;
+						gameState.redraw=true;
+						
+			
+				}
+				//back to original point
+				else {
+					gameState.selection.x=gameState.offX;
+					gameState.selection.y=gameState.offY;
+					gameState.redraw=true;
+				}
+				
+			}	
+		}
+		
+		else if (Op==1 && gameState.selection != null && gameState.draggable && greenLoop[gameState.origR][gameState.origC]!=greenLoop[gameState.eatR][gameState.eatC] && blueLoop[gameState.origR][gameState.origC]!=blueLoop[gameState.eatR][gameState.eatC]  ) {
+			gameState.selection.x=gameState.offX;
+			gameState.selection.y=gameState.offY;
+			
+			gameState.redraw=true;
+		}
+	
+	},true);
+	canvas.addEventListener("mouseup",function (e) {
+		var mouse=gameState.mousePosition(e);
+		var mouseX=mouse.x;
+		var mouseY=mouse.y;
+		var distX=mouse.x - gameState.offX;
+		var distY=mouse.y - gameState.offY;
+		var dist= Math.sqrt(distX*distX+distY*distY);
+		var distLimit=size*Math.sqrt(3);
+		gameState.result=false;
+		var op=gameState.chessOp[gameState.eatR][gameState.eatC];
+		if (op==0 && dist<=distLimit) {
+			gameState.chessOp[gameState.origR][gameState.origC]=0;
+			gameState.chessOp[gameState.eatR][gameState.eatC]=1;
+			gameState.selection.row=gameState.eatR;
+			gameState.selection.col=gameState.eatC;
+			gameState.selection.x=200+gameState.eatC*size;
+			gameState.selection.y=200+gameState.eatR*size;
+			gameState.draggable=false;
+			for (var i=0;i<gameState.cells.length;i++) {
+				if (gameState.cells[i].group==0){
+					gameState.compMove();
+					gameState.redraw=true;
+					break;
+				}
+			}		
+		}
+		else if (op==1 && (greenLoop[gameState.origR][gameState.origC]==greenLoop[gameState.eatR][gameState.eatC] || blueLoop[gameState.origR][gameState.origC]==blueLoop[gameState.eatR][gameState.eatC] )) {
+			if (gameState.selection.x!=gameState.offX && gameState.selection.y!=gameState.offY && gameState.startEat) {
+				gameState.chessOp[gameState.origR][gameState.origC]=0;
+				gameState.chessOp[gameState.eatR][gameState.eatC]=1;
+				gameState.selection.row=gameState.eatR;
+				gameState.selection.col=gameState.eatC;
+				gameState.selection.x=200+gameState.eatC*size;
+				gameState.selection.y=200+gameState.eatR*size;
+				gameState.startEat=false;
+				gameState.result=false;
+				gameState.eatCell=0;
+				gameState.draggable=false;
+				for (var i=0;i<gameState.cells.length;i++) {
+					if (gameState.cells[i].group==0){
+						gameState.compMove();
+						gameState.redraw=true;
+						break;
+					}
+				}
+			}
+			else {
+			gameState.selection.x=gameState.offX;
+			gameState.selection.y=gameState.offY;
+			gameState.draggable=false;
+			}
+		}
+		else {
+			gameState.selection.x=gameState.offX;
+			gameState.selection.y=gameState.offY;
+			gameState.draggable=false;
+		}
+		
+		var blackCellNum=0;
+		var redCellNum=0;
+		for (i=0;i<24;i++) {
+			if ( gameState.cells[i].r!=0 && gameState.cells[i].fill=='red') {
+				redCellNum++;
+			}
+			else if (gameState.cells[i].r!=0 && gameState.cells[i].fill=='black') {
+				blackCellNum++;
+			}
+		}
+		if (blackCellNum==0) {
+			alert("Congratulations!You won!");
+			document.location.reload();
+		}
+		else if (redCellNum==0) {
+			alert("What a pity...");
+			document.location.reload();
+		}
+	
+	},true);
+	
+	
+setInterval(function() {gameState.draw();},20);
+}
+canvasState.prototype.clear=function () {
+	this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+}
+canvasState.prototype.mousePosition=function(e) {
+	var mouseX=e.pageX-this.canvas.offsetLeft;
+	var mouseY=e.pageY-this.canvas.offsetTop;
+	return {x:mouseX, y:mouseY}
+}
+canvasState.prototype.addCell=function (Cell) {
+	this.cells.push(Cell);
+	this.redraw=true;
+}
+canvasState.prototype.rmCell=function() {
+	for (var i=0;i<this.cells.length;i++) {
+		if (this.cells[i].row==this.eatR && this.cells[i].col==this.eatC && this.cells[i].group==0) {
+			this.cells[i].r=0;
+		}
+	}
+	this.redraw=true;
+}
+//move 4 directions
+canvasState.prototype.moveUp=function() {
+	if (this.eatCell==1 && this.checkC==this.eatC && this.checkR==this.eatR) {
+		this.result=true;
+		this.startEat=true;
+		this.rmCell();
+		return;
+	}
+	else if (this.eatCell==1 && this.chessOp[this.checkR][this.checkC]==1) {
+		this.result=true;
+		this.startEat=false;
+		this.eatCell=0;
+		return;
+	}
+if ( !(this.checkR==0 && this.checkC==4) && !(this.checkR==0 && this.checkC==1) && !(this.checkR==0 && this.checkC==3) && !(this.checkR==0 && this.checkC==2) ) {
+	for (var i=0;i<6;i++) {
+		this.checkR--;
+		if (this.checkR<0) {this.checkR=0;break;}
+		if (this.eatCell==1 && this.checkR==this.eatR && this.checkC==this.eatC) {
+			this.result=true;
+			this.startEat=true;
+			this.rmCell();
+			return;
+		}
+		else if (this.eatCell==0 && this.checkR==this.eatR && this.checkC==this.eatC) {
+			this.eatCell=0;
+			this.startEat=false;
+			this.result=true;
+			return;
+		}
+		else if ((this.checkR!=this.eatR || this.checkC!=this.eatC) && this.chessOp[this.checkR][this.checkC]==1) {
+			this.eatCell=0;
+			this.startEat=false;
+			this.result=true;
+			return;
+		}
+		
+	}
+}
+	//start fly
+	if (this.checkR==0 && this.checkC==4 && this.checkC>2.5) {
+		this.checkC=5;
+		this.checkR=1;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==0 && this.checkC==1 && this.checkC<2.5) {
+		this.checkC=0;
+		this.checkR=1;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==0 && this.checkC==3 && this.checkC>2.5) {
+		this.checkC=5;
+		this.checkR=2;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==0 && this.checkC==2 && this.checkC<2.5) {
+		this.checkC=0;
+		this.checkR=2;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	
+}
+canvasState.prototype.moveDown=function() {
+	if (this.eatCell==1 && this.checkC==this.eatC && this.checkR==this.eatR) {
+		this.result=true;
+		this.startEat=true;
+		this.rmCell();
+		return;
+	}
+	else if (this.eatCell==1 && this.chessOp[this.checkR][this.checkC]==1) {
+		this.result=true;
+		this.startEat=false;
+		this.eatCell=0;
+		return;
+	}
+if ( !(this.checkR==5 && this.checkC==4) && !(this.checkR==5 && this.checkC==1) && !(this.checkR==5 && this.checkC==3) && !(this.checkR==5 && this.checkC==2) ) {
+	for (var i=0;i<6;i++) {
+		this.checkR++;
+		if (this.checkR==6) {this.checkR=5;break;}
+		if (this.eatCell==1 && this.checkR==this.eatR && this.checkC==this.eatC) {
+			this.result=true;
+			this.startEat=true;
+			this.rmCell();
+			return;
+		}
+		else if (this.eatCell==0 && this.checkR==this.eatR && this.checkC==this.eatC) {
+			this.eatCell=0;
+			this.startEat=false;
+			this.result=true;
+			return;
+		}
+		else if ((this.checkR!=this.eatR || this.checkC!=this.eatC) && this.chessOp[this.checkR][this.checkC]==1) {
+			this.eatCell=0;
+			this.startEat=false;
+			this.result=true;
+			return;
+		}
+	}
+}
+	//start fly
+	if (this.checkR==5 && this.checkC==4 && this.checkC>2.5) {
+		this.checkC=5;
+		this.checkR=4;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==5 && this.checkC==1 && this.checkC<2.5) {
+		this.checkC=0;
+		this.checkR=4;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==5 && this.checkC==3 && this.checkC>2.5) {
+		this.checkC=5;
+		this.checkR=3;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==5 && this.checkC==2 && this.checkC<2.5) {
+		this.checkC=0;
+		this.checkR=3;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+}
+canvasState.prototype.moveLeft=function() {
+	if (this.eatCell==1 && this.checkC==this.eatC && this.checkR==this.eatR) {
+		this.result=true;
+		this.startEat=true;
+		this.rmCell();
+		return;
+	}
+	else if (this.eatCell==1 && this.chessOp[this.checkR][this.checkC]==1) {
+		this.result=true;
+		this.startEat=false;
+		this.eatCell=0;
+		return;
+	}
+if ( !(this.checkR==4 && this.checkC==0) && !(this.checkR==1 && this.checkC==0) && !(this.checkR==3 && this.checkC==0) && !(this.checkR==2 && this.checkC==0) ) {
+	for (var i=0;i<6;i++) {
+		this.checkC--;
+		if (this.checkC<0) {this.checkC=0;break;}
+		if (this.eatCell==1 && this.checkR==this.eatR && this.checkC==this.eatC) {
+			this.result=true;
+			this.startEat=true;
+			this.rmCell();
+			return;
+		}
+		else if (this.eatCell==0 && this.checkR==this.eatR && this.checkC==this.eatC) {
+			this.eatCell=0;
+			this.result=true;
+			this.startEat=false;
+			return;
+		}
+		else if (this.chessOp[this.checkR][this.checkC]==1 && (this.checkR!=this.eatR || this.checkC!=this.eatC)) {
+			this.eatCell=0;
+			this.result=true;
+			this.startEat=false;
+			return;
+		}
+	}
+}
+	//start fly
+	if (this.checkR==4 && this.checkC==0 && this.checkR>2.5) {
+		this.checkC=1;
+		this.checkR=5;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==1 && this.checkC==0 && this.checkR<2.5) {
+		this.checkC=1;
+		this.checkR=0;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==3 && this.checkC==0 && this.checkR>2.5) {
+		this.checkC=2;
+		this.checkR=5;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==2 && this.checkC==0 && this.checkR<2.5) {
+		this.checkC=2;
+		this.checkR=0;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+}
+canvasState.prototype.moveRight=function() {
+	if (this.eatCell==1 && this.checkC==this.eatC && this.checkR==this.eatR) {
+		this.result=true;
+		this.startEat=true;
+		this.rmCell();
+		return;
+	}
+	else if (this.eatCell==1 && this.chessOp[this.checkR][this.checkC]==1) {
+		this.result=true;
+		this.startEat=false;
+		this.eatCell=0;
+		return;
+	}
+if ( !(this.checkR==4 && this.checkC==5) && !(this.checkR==1 && this.checkC==5) && !(this.checkR==3 && this.checkC==5) && !(this.checkR==2 && this.checkC==5) ) {
+	for (var i=0;i<6;i++) {
+		this.checkC++;
+		if (this.checkC==6) {this.checkC=5;break;}
+		if (this.eatCell==1 && this.checkR==this.eatR && this.checkC==this.eatC) {
+			this.result=true;
+			this.startEat=true;
+			this.rmCell();
+			return;
+		}
+		else if (this.eatCell==0 && this.checkR==this.eatR && this.checkC==this.eatC) {
+			this.eatCell=0;
+			this.startEat=false;
+			this.result=true;
+			return;
+		}
+		else if (this.chessOp[this.checkR][this.checkC]==1 && (this.checkR!=this.eatR || this.checkC!=this.eatC)) {
+			this.eatCell=0;
+			this.result=true;
+			this.startEat=false;
+			return;
+		}
+	}
+}
+	//start fly
+	if (this.checkR==4 && this.checkC==5 && this.checkR>2.5) {
+		this.checkC=4;
+		this.checkR=5;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==1 && this.checkC==5 && this.checkR<2.5) {
+		this.checkC=4;
+		this.checkR=0;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==3 && this.checkC==5 && this.checkR>2.5) {
+		this.checkC=3;
+		this.checkR=5;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+	else if (this.checkR==2 && this.checkC==5 && this.checkR<2.5) {
+		this.checkC=3;
+		this.checkR=0;
+		this.eatCell=1;
+		this.result=false;
+		return;
+	}
+}
+
+canvasState.prototype.compMove=function() {
+	var compR=0;
+	var compC=0;
+	var gameState=this;
+	loop:for (var i=0;i<gameState.cells.length;i++) {
+			if (gameState.cells[i].group==0 && gameState.cells[i].r!=0){
+				var blackCell=gameState.cells[i];
+				compR=blackCell.row;
+				compC=blackCell.col;
+				if (compR<5 && this.chessOp[compR+1][compC]==0 ) {
+					gameState.cells[i].row=compR+1;
+					gameState.cells[i].y=200+(compR+1)*size;
+					this.chessOp[compR+1][compC]=1;
+					this.chessOp[compR][compC]=0;
+					break loop;return;}
+				else if (compR<5 && compC<5 && this.chessOp[compR+1][compC+1]==0 ) {
+					gameState.cells[i].row=compR+1;
+					gameState.cells[i].col=compC+1;
+					gameState.cells[i].x=200+(compC+1)*size;
+					gameState.cells[i].y=200+(compR+1)*size;
+					this.chessOp[compR+1][compC+1]=1;
+					this.chessOp[compR][compC]=0;
+					break loop;return;}
+				else if (compR<5 && compC>0 && this.chessOp[compR+1][compC-1]==0 ) {gameState.cells[i].row=compR+1;gameState.cells[i].col=compC-1;gameState.cells[i].x=200+(compC-1)*size;gameState.cells[i].y=200+(compR+1)*size;this.chessOp[compR+1][compC-1]=1;this.chessOp[compR][compC]=0;break loop;return;}	
+				else if (compR>0 && compC>0 && this.chessOp[compR-1][compC-1]==0 ) {gameState.cells[i].row=compR-1;gameState.cells[i].col=compC-1;gameState.cells[i].x=200+(compC-1)*size;gameState.cells[i].y=200+(compR-1)*size;this.chessOp[compR-1][compC-1]=1;this.chessOp[compR][compC]=0;break loop;return;}
+				else if (compC>0 && this.chessOp[compR][compC-1]==0 ) {gameState.cells[i].col=compC-1;gameState.cells[i].x=200+(compC-1)*size;this.chessOp[compR][compC-1]=1;this.chessOp[compR][compC]=0;break loop;return;}
+				else if (compC<5 && this.chessOp[compR][compC+1]==0 ) {gameState.cells[i].col=compC+1;gameState.cells[i].x=200+(compC+1)*size;this.chessOp[compR][compC+1]=1;this.chessOp[compR][compC]=0;break loop;return;}
+				else if (compR>0 && this.chessOp[compR-1][compC]==0 ) {gameState.cells[i].row=compR-1;gameState.cells[i].y=200+(compR-1)*size;this.chessOp[compR-1][compC]=1;this.chessOp[compR][compC]=0;break loop;return;}
+				else if (compR>0 && this.compC<5 && this.chessOp[compR-1][compC+1]==0 ) {gameState.cells[i].row=compR-1;gameState.cells[i].col=compC+1;gameState.cells[i].x=200+(compC+1)*size;gameState.cells[i].y=200+(compR-1)*size;this.chessOp[compR-1][compC+1]=1;this.chessOp[compR][compC]=0;break loop;return;}
+				
+			}
+		}
+}
+canvasState.prototype.draw=function() {
+	if (this.redraw==true) {
+		var ctx=this.ctx;
+		var cells=this.cells;
+		this.clear();
+		var size=80;
+		ctx.beginPath();
+		ctx.rect(200,360,size*5,size);
+		ctx.rect(360,200,size,size*5);
+		ctx.arc(600,200,size*2,1*Math.PI,0.5*Math.PI);
+		ctx.arc(600,600,size*2,1.5*Math.PI,1*Math.PI);
+		ctx.arc(200,600,size*2,0*Math.PI,1.5*Math.PI);
+		ctx.arc(200,200,size*2,0.5*Math.PI,0*Math.PI);
+		ctx.strokeStyle="green";
+		ctx.lineWidth="3";
+		ctx.stroke();
+		ctx.closePath();
+		ctx.beginPath();
+		ctx.rect(280,200,size*3,size);
+		ctx.rect(520,280,size,size*3);
+		ctx.rect(280,520,size*3,size);
+		ctx.rect(200,280,size,size*3);
+		ctx.rect(280,200,size*3,size);
+		ctx.arc(600,200,size,1*Math.PI,0.5*Math.PI);
+		ctx.arc(600,600,size,1.5*Math.PI,1*Math.PI);
+		ctx.arc(200,600,size,0*Math.PI,1.5*Math.PI);
+		ctx.arc(200,200,size,0.5*Math.PI,0*Math.PI);
+		ctx.strokeStyle="#0095DD";
+		ctx.lineWidth="3";
+		ctx.stroke();
+		ctx.closePath();
+		ctx.beginPath();
+		ctx.rect(200,200,size*5,size*5);
+		ctx.strokeStyle="yellow";
+		ctx.lineWidth="3";
+		ctx.stroke();
+		ctx.closePath();
+		
+		ctx.beginPath();
+		for (var i=0;i<cells.length;i++){
+			var cell=cells[i];
+			cell.draw(ctx);
+	
+		}
+
+	}
+	this.redraw=false;
+}
+
+function play() {
+	var c=new canvasState(document.getElementById("myCanvas"));
+	var cellrow=2;
+	var cellcol=6;
+	for (var i=0;i<cellrow;i++) {
+		for (var j=0;j<cellcol;j++) {
+			c.addCell(new Cell(startX+j*size,startY+i*size,radius,'black',0,i,j));
+			c.addCell(new Cell(startX+j*size,startY+(i+4)*size,radius,'red',1,i+4,j));
+		}
+	}
+	
+	
+}
+function start() {
+	alert("Game Strated!");
+	document.getElementById("image").remove();
+	play();
+}
+function stop() {
+	alert("You can press Start buttom to have a new round!");
+	document.location.reload();
+}
+function read() {
+	alert("Surakarta Rules (CHECK README link for more infor)\n1-You are the player of RED chess which goes first.\n2-Your chess can go one grid per time (including diagonal).\n3-Only after completing at least one corner loop and going along the line with the same color, you can eat the other chess. ");
+}
+</script>
+</body>
+</html>
